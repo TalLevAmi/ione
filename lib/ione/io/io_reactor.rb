@@ -325,9 +325,7 @@ module Ione
 
       def schedule_timer(timeout, promise=Promise.new)
         @lock.lock
-        timers = @timers.reject { |pair| pair[1].nil? }
-        timers << [@clock.now + timeout, promise]
-        @timers = timers
+        @timers << [@clock.now + timeout, promise]
         promise.future
       ensure
         @lock.unlock
@@ -392,13 +390,27 @@ module Ione
       end
 
       def check_timers!
-        timers = @timers
-        timers.each do |pair|
-          if pair[1] && pair[0] <= @clock.now
-            pair[1].fulfill
-            pair[1] = nil
+        now_sec = @clock.now.to_i
+        return if @last_check == now_sec
+        @last_check = now_sec
+        
+        to_fulfill = []
+        begin 
+          @lock.lock
+          @timers = @timers.reject do |pair|
+            if pair[1].nil?
+              true
+            elsif pair[0] <= @clock.now
+              to_fulfill << pair[1]
+              true
+            else
+              false
+            end
           end
+        ensure 
+          @lock.unlock
         end
+        to_fulfill.each(&:fulfill)
       end
     end
   end
