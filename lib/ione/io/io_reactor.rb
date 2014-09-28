@@ -352,12 +352,15 @@ module Ione
       end
 
       def cancel_timers
+        @lock.lock
         @timers.each do |pair|
           if pair[1]
             pair[1].fail(CancelledError.new)
             pair[1] = nil
           end
         end
+      ensure 
+        @lock.unlock
       end
 
       def tick(timeout=1)
